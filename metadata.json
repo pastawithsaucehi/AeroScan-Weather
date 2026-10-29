@@ -1,0 +1,6 @@
+{
+  "name": "AeroScan",
+  "description": "Real-time global weather radar scanning for strong winds, tropical cyclones, and humidity levels, stabilized with ECMWF and WeatherNext models, satellite telemetry, and distributed servers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
