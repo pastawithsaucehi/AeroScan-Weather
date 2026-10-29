@@ -261,7 +261,7 @@ fun MapHudOverlay(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "AEROSCAN v1.3",
+                        text = "AEROSCAN v1.4",
                         color = textPrimary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -366,13 +366,24 @@ fun MapHudOverlay(
                             )
                             Spacer(modifier = Modifier.width(5.dp))
                             Text(
-                                text = "v1.3",
+                                text = "v1.4",
                                 color = RadarCyan,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace,
                                 modifier = Modifier
                                     .background(RadarCyan.copy(alpha = 0.18f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "10cm S-BAND",
+                                color = RadarGreen,
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier
+                                    .background(RadarGreen.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
                                     .padding(horizontal = 4.dp, vertical = 1.dp)
                             )
                         }
@@ -1135,7 +1146,7 @@ fun MapHudOverlay(
                 }
             }
 
-            // 72-Hour Forecast Predictive Timeline Scrubber (v1.3 Feature)
+            // 72-Hour Forecast Predictive Timeline Scrubber (v1.4 Feature)
             if (uiState.appScanMode != AppScanMode.SETTINGS) {
                 Surface(
                     shape = RoundedCornerShape(14.dp),
@@ -1514,7 +1525,7 @@ private fun RadarSettingsPanel(
                         border = androidx.compose.foundation.BorderStroke(1.dp, RadarCyan)
                     ) {
                         Text(
-                            text = "v1.3",
+                            text = "v1.4",
                             color = RadarCyan,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
@@ -1553,7 +1564,7 @@ private fun RadarSettingsPanel(
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
-                            text = "Release 2026.10 • Build 5 • Target SDK 36",
+                            text = "Release 2026.10 • Build 6 • Target SDK 36",
                             color = textSecondary,
                             fontSize = 9.sp,
                             fontFamily = FontFamily.Monospace
@@ -1564,7 +1575,7 @@ private fun RadarSettingsPanel(
                         color = RadarCyan
                     ) {
                         Text(
-                            text = "VERSION 1.3",
+                            text = "VERSION 1.4",
                             color = Color.Black,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
@@ -1747,7 +1758,7 @@ private fun RadarSettingsPanel(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // 2. Scanning Speed Slider: 5 spots per sec - 10 spots per sec (boosted to 15.0 spots/sec via Easter Egg!)
+            // 2. Radar Sweep Cadence Slider: 5.0 - 10.0 sweeps/sec (10cm S-Band WSR-88D Level II)
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1756,7 +1767,7 @@ private fun RadarSettingsPanel(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Scanning Speed",
+                            text = "Doppler Sweep Cadence (10cm S-Band)",
                             color = textPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
@@ -1764,7 +1775,7 @@ private fun RadarSettingsPanel(
                         if (uiState.isEasterEggUnlocked) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "⚡ 15.0 SPOTS/S OVERCLOCK",
+                                text = "⚡ 15.0 SWEEPS/S OVERCLOCK",
                                 color = Color(0xFFFFD600),
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
@@ -1776,7 +1787,7 @@ private fun RadarSettingsPanel(
                         }
                     }
                     Text(
-                        text = String.format("%.1f spots/sec", uiState.scanningSpeedSpotsPerSec),
+                        text = String.format("%.1f sweeps/s", uiState.scanningSpeedSpotsPerSec),
                         color = if (uiState.isEasterEggUnlocked) Color(0xFFFFD600) else RadarGreen,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
@@ -1784,7 +1795,7 @@ private fun RadarSettingsPanel(
                     )
                 }
                 Text(
-                    text = "Controls real-time radar sweep rotation & instant red square spot detection rate",
+                    text = "Controls real-time 10cm S-Band (2.8 GHz) antenna rotation & Doppler precipitation cell acquisition rate",
                     color = textSecondary,
                     fontSize = 10.sp
                 )
@@ -1808,12 +1819,50 @@ private fun RadarSettingsPanel(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("5.0 spots/sec (Low)", color = textSecondary, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                    Text("5.0 sweeps/s (VCP-31 Surveillance)", color = textSecondary, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
                     if (uiState.isEasterEggUnlocked) {
-                        Text("15.0 spots/sec (⚡ OVERCLOCK UNLOCKED)", color = Color(0xFFFFD600), fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                        Text("15.0 sweeps/s (⚡ OVERCLOCK UNLOCKED)", color = Color(0xFFFFD600), fontSize = 9.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                     } else {
-                        Text("10.0 spots/sec (Ultra Fast)", color = textSecondary, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                        Text("10.0 sweeps/s (10cm High Speed)", color = textSecondary, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 2b. Educational Radar Science Card: What does 10cm Radar Scanner mean?
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = RadarCyan.copy(alpha = 0.10f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, RadarCyan.copy(alpha = 0.40f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("radar_10cm_explanation_card")
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Radar,
+                            contentDescription = null,
+                            tint = RadarCyan,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "WHAT DOES '10cm SCANNER' MEAN?",
+                            color = RadarCyan,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(5.dp))
+                    Text(
+                        text = "In operational meteorology, '10cm Scanner' designates the 10-centimeter microwave wavelength (S-Band, 2.7–3.0 GHz) used by NOAA WSR-88D NEXRAD and global Doppler networks. Unlike shorter 3cm (X-Band) or 5cm (C-Band) radars, 10cm radio waves suffer zero signal attenuation when penetrating intense hurricane eyewalls, severe hail cores, and torrential tropical rainbands, delivering unattenuated Level II Doppler reflectivity (dBZ) and true precipitation rates.",
+                        color = textPrimary,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp
+                    )
                 }
             }
 
@@ -2117,7 +2166,7 @@ private fun RadarSettingsPanel(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "AEROSCAN v1.3 • BUILD 5 (RELEASE-2026)",
+                            text = "AEROSCAN v1.4 • BUILD 6 (RELEASE-2026)",
                             color = textSecondary,
                             fontSize = 9.sp,
                             fontFamily = FontFamily.Monospace,
@@ -2727,18 +2776,19 @@ private fun ScannedSpotDetailCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val spotAccent = com.example.model.getReflectivityColor(spot.reflectivityDbz)
                     Box(
                         modifier = Modifier
                             .size(12.dp)
-                            .background(Color(0xFFFF1744), RoundedCornerShape(2.dp))
+                            .background(spotAccent, RoundedCornerShape(2.dp))
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "RED TARGET LOCK: ${spot.name}",
+                                text = "10cm S-BAND DOPPLER: ${spot.name}",
                                 color = textPrimary,
-                                fontSize = 14.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace
                             )
@@ -2751,9 +2801,10 @@ private fun ScannedSpotDetailCard(
                                 fontFamily = FontFamily.Monospace
                             )
                         }
+                        val coordText = "${String.format(java.util.Locale.US, "%.2f°%s, %.2f°%s", kotlin.math.abs(spot.location.lat), if (spot.location.lat >= 0) "N" else "S", kotlin.math.abs(spot.location.lon), if (spot.location.lon >= 0) "E" else "W")}"
                         Text(
-                            text = "INSTANT ACQUISITION • ${String.format("%.2f°N, %.2f°W", spot.location.lat, kotlin.math.abs(spot.location.lon))}",
-                            color = Color(0xFFFF5252),
+                            text = "STATION: ${spot.radarStationCallsign} • LEVEL II DUAL-POL • $coordText",
+                            color = RadarCyan,
                             fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace
                         )
@@ -2771,19 +2822,50 @@ private fun ScannedSpotDetailCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
+            // Primary Doppler Radar Physical Telemetry Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                MetricColumn("ACCURACY", "${String.format("%.1f", spot.accuracyPct)}%", if (spot.type == ScannedSpotType.HEAVY_RAIN) Color(0xFF00B0FF) else Color(0xFFFF1744))
+                MetricColumn("REFLECTIVITY", "${String.format("%.1f", spot.reflectivityDbz)} dBZ", com.example.model.getReflectivityColor(spot.reflectivityDbz))
+                MetricColumn("ECHO TOP", "${spot.echoTopKft},000 FT", Color(0xFFE040FB))
                 if (spot.precipitationRateMmH > 0f) {
-                    MetricColumn("RAIN RATE", "${String.format("%.1f", spot.precipitationRateMmH)} mm/h", Color(0xFF00B0FF))
+                    MetricColumn("RAIN RATE (Z-R)", "${String.format("%.1f", spot.precipitationRateMmH)} mm/h", Color(0xFF00B0FF))
                 } else {
                     MetricColumn("WIND INTENSITY", "${spot.windKts} kts", Color(0xFFFF9100))
                 }
+                MetricColumn("CONFIDENCE", "${String.format("%.1f", spot.accuracyPct)}%", RadarGreen)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Secondary Atmospheric Telemetry Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                MetricColumn("RADAR CATEGORY", com.example.model.getReflectivityCategory(spot.reflectivityDbz), com.example.model.getReflectivityColor(spot.reflectivityDbz))
                 MetricColumn("HUMIDITY", "${spot.humidityPct}%", Color(0xFF00E5FF))
                 val aqiCol = if (spot.aqi <= 50) Color(0xFF00E676) else if (spot.aqi <= 100) Color(0xFFFFD600) else Color(0xFFFF5252)
                 MetricColumn("AIR QUALITY", "AQI ${spot.aqi}", aqiCol)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Real Radar Science Footnote
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = RadarCyan.copy(alpha = 0.08f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, RadarCyan.copy(alpha = 0.25f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "📡 10cm S-Band (2.7–3.0 GHz WSR-88D): Global meteorological standard radar wavelength. Zero signal attenuation through hurricane eyewalls and torrential monsoons.",
+                    color = textPrimary.copy(alpha = 0.75f),
+                    fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                )
             }
         }
     }

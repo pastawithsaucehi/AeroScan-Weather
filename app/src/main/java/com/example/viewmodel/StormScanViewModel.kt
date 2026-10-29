@@ -128,7 +128,7 @@ data class StormScanUiState(
     val rfPrfHz: Int = 1200,
     val aiInferenceLatencyMs: Float = 14.2f,
     val framesProcessedCount: Long = 0L,
-    val activeDetectionAlert: String = "OCTOBER 2026 ACTIVE CYCLONES: 5 Systems Tracked • Real-Time AI Consensus Locked"
+    val activeDetectionAlert: String = "10cm S-BAND RADAR SCANNER ACTIVE: WSR-88D & BMKG Doppler Network (2.7–3.0 GHz) • 5 Cyclones Tracked"
 )
 
 class StormScanViewModel(
@@ -303,8 +303,8 @@ class StormScanViewModel(
                 isEasterEggUnlocked = true,
                 maxScanningSpeedSpotsPerSec = 15.0f,
                 scanningSpeedSpotsPerSec = 15.0f,
-                easterEggBannerText = "⚡ OVERCLOCK UNLOCKED: 15.0 SPOTS/SEC SCANNING LIMIT ENGAGED!",
-                activeDetectionAlert = "⚡ OVERCLOCK MODE: 15.0 SPOTS/SEC • INSTANT RED TARGET SQUARES ACTIVE"
+                easterEggBannerText = "⚡ 10cm S-BAND RADAR OVERCLOCK: 15.0 SWEEPS/SEC PULSE LIMIT ENGAGED!",
+                activeDetectionAlert = "⚡ 10cm S-BAND PULSE OVERCLOCK: 15.0 SWEEPS/SEC • DUAL-POL LEVEL II DOPPLER LOCKED"
             )
         }
     }
@@ -788,49 +788,70 @@ class StormScanViewModel(
         }
     }
 
+    private fun dbzToPrecipMmH(dbz: Float): Float {
+        if (dbz < 20f) return 0f
+        val z = Math.pow(10.0, (dbz / 10.0).toDouble())
+        // National Weather Service Marshall-Palmer equation: Z = 300 * R^1.4 => R = (Z / 300)^(1 / 1.4)
+        val r = Math.pow(z / 300.0, 1.0 / 1.4).toFloat()
+        return kotlin.math.round(r * 10f) / 10f
+    }
+
     private fun generateTacticalSpot(counter: Int, state: StormScanUiState): ScannedSpot {
         val accuracyBase = state.accuracyPct.toFloat()
-        val jitter = (Random.nextFloat() * 4.0f - 2.0f)
-        val calculatedAccuracy = (accuracyBase + jitter).coerceIn(20.0f, 99.9f)
+        val jitter = (Random.nextFloat() * 2.0f - 1.0f)
+        val calculatedAccuracy = (accuracyBase + jitter).coerceIn(85.0f, 99.8f)
 
-        // Alternate: 50% around the active target/system (at forecasted position!), 50% along the active radar scanner / viewport beam
-        val useViewportScan = (counter % 2 == 0)
+        // Alternate: 50% around the active storm system, 50% from active 10cm S-Band ground Doppler stations or viewport
+        val useStationOrViewport = (counter % 2 == 0)
 
-        if (useViewportScan) {
-            val centerLat = state.viewport.centerLat
-            val centerLon = state.viewport.centerLon
-            val beamAngleRad = Math.toRadians(state.radarScanAngleDeg.toDouble())
-            val viewSpan = (35.0 / state.viewport.zoom.coerceIn(0.6f, 3.0f))
-            val dist = Random.nextFloat() * (viewSpan * 0.42f)
-            val spotLat = (centerLat + dist * kotlin.math.sin(beamAngleRad)).coerceIn(-80.0, 80.0)
-            val spotLon = (centerLon + dist * kotlin.math.cos(beamAngleRad))
+        if (useStationOrViewport) {
+            // Find nearest or designated real ground Doppler radar station
+            val station = com.example.data.GeoData.dopplerStations[counter % com.example.data.GeoData.dopplerStations.size]
+            val angleRad = Math.toRadians((state.radarScanAngleDeg + (counter * 37) % 360).toDouble())
+            val maxRangeDeg = 3.5 // ~380km radar range
+            val dist = Random.nextFloat() * maxRangeDeg
+            val spotLat = (station.location.lat + dist * kotlin.math.sin(angleRad)).coerceIn(-80.0, 80.0)
+            val spotLon = (station.location.lon + dist * kotlin.math.cos(angleRad))
 
-            val spotTypes = listOf(
-                Triple("RADAR CONVECTIVE ECHO", ScannedSpotType.CONVECTIVE_CELL, Random.nextInt(32, 68)),
-                Triple("DEEP TROPOSPHERIC SHEAR", ScannedSpotType.STRONG_WIND_CELL, Random.nextInt(45, 85)),
-                Triple("TROPICAL MONSOON DOWNPOUR", ScannedSpotType.HEAVY_RAIN, Random.nextInt(28, 62)),
-                Triple("DOPPLER SQUALL RAIN SHAFT", ScannedSpotType.HEAVY_RAIN, Random.nextInt(35, 75)),
-                Triple("AI NEURAL CYCLOGENESIS", ScannedSpotType.AI_NEURAL_ANOMALY, Random.nextInt(25, 75)),
-                Triple("SATELLITE THERMAL COLD TOP", ScannedSpotType.SATELLITE_FOOTPRINT, Random.nextInt(28, 55))
+            val stationCells = listOf(
+                Pair(ScannedSpotType.HEAVY_RAIN, "PRECIP CELL"),
+                Pair(ScannedSpotType.HEAVY_RAIN, "MONSOON SQUALL"),
+                Pair(ScannedSpotType.CONVECTIVE_CELL, "CONVECTIVE ECHO"),
+                Pair(ScannedSpotType.STRONG_WIND_CELL, "GALE SHEAR CELL"),
+                Pair(ScannedSpotType.SATELLITE_FOOTPRINT, "ORBITAL SOUNDING"),
+                Pair(ScannedSpotType.AI_NEURAL_ANOMALY, "CYCLOGENESIS ANOMALY")
             )
-            val chosen = spotTypes[counter % spotTypes.size]
-            val rainRate = if (chosen.second == ScannedSpotType.HEAVY_RAIN) {
-                Random.nextFloat() * 55f + 25f
-            } else if (chosen.second == ScannedSpotType.CONVECTIVE_CELL) {
-                Random.nextFloat() * 20f + 5f
-            } else 0f
+            val chosen = stationCells[counter % stationCells.size]
+            val dbz = when (chosen.first) {
+                ScannedSpotType.HEAVY_RAIN -> Random.nextFloat() * 12f + 48f // 48 - 60 dBZ
+                ScannedSpotType.CONVECTIVE_CELL -> Random.nextFloat() * 12f + 36f // 36 - 48 dBZ
+                ScannedSpotType.STRONG_WIND_CELL -> Random.nextFloat() * 10f + 42f // 42 - 52 dBZ
+                ScannedSpotType.SATELLITE_FOOTPRINT -> Random.nextFloat() * 8f + 30f // 30 - 38 dBZ
+                ScannedSpotType.AI_NEURAL_ANOMALY -> Random.nextFloat() * 10f + 35f // 35 - 45 dBZ
+                ScannedSpotType.CYCLONE_CORE -> Random.nextFloat() * 8f + 60f
+            }
+            val rainMmH = dbzToPrecipMmH(dbz)
+            val echoTop = Random.nextInt(32, 52)
+            val windSpeed = when (chosen.first) {
+                ScannedSpotType.STRONG_WIND_CELL -> Random.nextInt(50, 85)
+                ScannedSpotType.HEAVY_RAIN -> Random.nextInt(35, 65)
+                else -> Random.nextInt(25, 55)
+            }
 
             return ScannedSpot(
-                id = "spot_v_${counter}_${System.currentTimeMillis()}",
+                id = "spot_rad_${counter}_${System.currentTimeMillis()}",
                 location = GeoPoint(spotLat, spotLon),
-                name = "${chosen.first} #${counter % 900 + 100}",
-                type = chosen.second,
+                name = "${station.callsign} ${chosen.second}",
+                type = chosen.first,
                 accuracyPct = calculatedAccuracy,
-                windKts = chosen.third,
-                humidityPct = if (chosen.second == ScannedSpotType.HEAVY_RAIN) Random.nextInt(88, 100) else Random.nextInt(65, 98),
-                aqi = Random.nextInt(12, 35),
+                windKts = windSpeed,
+                humidityPct = if (chosen.first == ScannedSpotType.HEAVY_RAIN) Random.nextInt(90, 100) else Random.nextInt(70, 95),
+                aqi = Random.nextInt(12, 30),
                 detectedTick = System.currentTimeMillis(),
-                precipitationRateMmH = rainRate
+                precipitationRateMmH = rainMmH,
+                reflectivityDbz = dbz,
+                echoTopKft = echoTop,
+                radarStationCallsign = station.callsign
             )
         }
 
@@ -844,20 +865,33 @@ class StormScanViewModel(
                     val distDeg = Random.nextFloat() * 1.8f
                     val spotLat = activeLoc.lat + (distDeg * kotlin.math.sin(angleRad))
                     val spotLon = activeLoc.lon + (distDeg * kotlin.math.cos(angleRad))
-                    val isEyewall = distDeg < 0.5f
-                    val isHeavyRain = distDeg in 0.5f..1.3f
-                    val rainRate = if (isEyewall) Random.nextFloat() * 40f + 65f else if (isHeavyRain) Random.nextFloat() * 45f + 25f else Random.nextFloat() * 15f + 5f
+                    val isEyewall = distDeg < 0.45f
+                    val isHeavyRain = distDeg in 0.45f..1.2f
+
+                    val dbz = if (isEyewall) {
+                        Random.nextFloat() * 8f + 60f // 60 - 68 dBZ (Extreme eyewall)
+                    } else if (isHeavyRain) {
+                        Random.nextFloat() * 10f + 48f // 48 - 58 dBZ (Torrential rain)
+                    } else {
+                        Random.nextFloat() * 10f + 35f // 35 - 45 dBZ (Outer convective band)
+                    }
+                    val rainMmH = dbzToPrecipMmH(dbz)
+                    val echoTop = if (isEyewall) Random.nextInt(48, 58) else Random.nextInt(36, 48)
+
                     ScannedSpot(
                         id = "spot_${counter}_${System.currentTimeMillis()}",
                         location = GeoPoint(spotLat, spotLon),
-                        name = if (isEyewall) "${storm.name} EYEWALL" else if (isHeavyRain) "${storm.name} TORRENTIAL RAIN" else "${storm.name} RAINBAND",
+                        name = if (isEyewall) "${storm.name} EYEWALL" else if (isHeavyRain) "${storm.name} FEEDER RAIN" else "${storm.name} RAINBAND",
                         type = if (isEyewall) ScannedSpotType.CYCLONE_CORE else if (isHeavyRain) ScannedSpotType.HEAVY_RAIN else ScannedSpotType.CONVECTIVE_CELL,
                         accuracyPct = calculatedAccuracy,
-                        windKts = if (isEyewall) activeWind else (activeWind * 0.65f).toInt(),
-                        humidityPct = (storm.relativeHumidityPct + Random.nextInt(-3, 4)).coerceIn(75, 100),
-                        aqi = Random.nextInt(14, 32),
+                        windKts = if (isEyewall) activeWind else (activeWind * 0.68f).toInt(),
+                        humidityPct = (storm.relativeHumidityPct + Random.nextInt(-2, 3)).coerceIn(85, 100),
+                        aqi = Random.nextInt(10, 25),
                         detectedTick = System.currentTimeMillis(),
-                        precipitationRateMmH = rainRate
+                        precipitationRateMmH = rainMmH,
+                        reflectivityDbz = dbz,
+                        echoTopKft = echoTop,
+                        radarStationCallsign = "10cm S-BAND"
                     )
                 } else {
                     generateFallbackSpot(counter, calculatedAccuracy)
@@ -875,16 +909,22 @@ class StormScanViewModel(
                     val distDeg = Random.nextFloat() * 2.5f
                     val spotLat = baseLat + (distDeg * kotlin.math.sin(angleRad))
                     val spotLon = baseLon + (distDeg * kotlin.math.cos(angleRad))
+                    val dbz = Random.nextFloat() * 10f + 42f // 42 - 52 dBZ
+
                     ScannedSpot(
                         id = "spot_${counter}_${System.currentTimeMillis()}",
                         location = GeoPoint(spotLat, spotLon),
-                        name = "${wind.name} FRONT",
+                        name = "${wind.name} GALE CORE",
                         type = ScannedSpotType.STRONG_WIND_CELL,
                         accuracyPct = calculatedAccuracy,
-                        windKts = (wind.sustainedWindKts + Random.nextInt(-5, 6)).coerceAtLeast(34),
-                        humidityPct = (wind.humidityPct + Random.nextInt(-4, 5)).coerceIn(40, 95),
-                        aqi = Random.nextInt(25, 65),
-                        detectedTick = System.currentTimeMillis()
+                        windKts = (wind.sustainedWindKts + Random.nextInt(-4, 5)).coerceAtLeast(35),
+                        humidityPct = (wind.humidityPct + Random.nextInt(-3, 4)).coerceIn(50, 95),
+                        aqi = Random.nextInt(20, 50),
+                        detectedTick = System.currentTimeMillis(),
+                        precipitationRateMmH = dbzToPrecipMmH(dbz),
+                        reflectivityDbz = dbz,
+                        echoTopKft = Random.nextInt(28, 42),
+                        radarStationCallsign = "POLAR-WIND"
                     )
                 } else {
                     generateFallbackSpot(counter, calculatedAccuracy)
@@ -897,16 +937,22 @@ class StormScanViewModel(
                     val distDeg = Random.nextFloat() * 4.0f
                     val spotLat = (sat.location.lat + (distDeg * kotlin.math.sin(angleRad))).coerceIn(-75.0, 75.0)
                     val spotLon = sat.location.lon + (distDeg * kotlin.math.cos(angleRad))
+                    val dbz = Random.nextFloat() * 8f + 32f
+
                     ScannedSpot(
                         id = "spot_${counter}_${System.currentTimeMillis()}",
                         location = GeoPoint(spotLat, spotLon),
-                        name = "${sat.name} SWATH",
+                        name = "${sat.name} SOUNDING",
                         type = ScannedSpotType.SATELLITE_FOOTPRINT,
                         accuracyPct = calculatedAccuracy,
-                        windKts = Random.nextInt(20, 95),
-                        humidityPct = Random.nextInt(60, 98),
-                        aqi = Random.nextInt(18, 48),
-                        detectedTick = System.currentTimeMillis()
+                        windKts = Random.nextInt(20, 85),
+                        humidityPct = Random.nextInt(65, 96),
+                        aqi = Random.nextInt(15, 40),
+                        detectedTick = System.currentTimeMillis(),
+                        precipitationRateMmH = dbzToPrecipMmH(dbz),
+                        reflectivityDbz = dbz,
+                        echoTopKft = Random.nextInt(32, 48),
+                        radarStationCallsign = sat.name.take(8)
                     )
                 } else {
                     generateFallbackSpot(counter, calculatedAccuracy)
@@ -919,6 +965,8 @@ class StormScanViewModel(
                     val distDeg = Random.nextFloat() * 1.5f
                     val spotLat = zone.location.lat + (distDeg * kotlin.math.sin(angleRad))
                     val spotLon = zone.location.lon + (distDeg * kotlin.math.cos(angleRad))
+                    val dbz = Random.nextFloat() * 12f + 46f
+
                     ScannedSpot(
                         id = "surge_${counter}_${System.currentTimeMillis()}",
                         location = GeoPoint(spotLat, spotLon),
@@ -928,7 +976,11 @@ class StormScanViewModel(
                         windKts = (zone.peakSurgeFeet * 5.2f).toInt().coerceAtLeast(35),
                         humidityPct = 96,
                         aqi = 18,
-                        detectedTick = System.currentTimeMillis()
+                        detectedTick = System.currentTimeMillis(),
+                        precipitationRateMmH = dbzToPrecipMmH(dbz),
+                        reflectivityDbz = dbz,
+                        echoTopKft = Random.nextInt(35, 48),
+                        radarStationCallsign = "COAST-SURGE"
                     )
                 } else {
                     generateFallbackSpot(counter, calculatedAccuracy)
@@ -941,18 +993,24 @@ class StormScanViewModel(
     }
 
     private fun generateFallbackSpot(counter: Int, accuracy: Float): ScannedSpot {
-        val lat = (Random.nextFloat() * 80.0 - 40.0)
-        val lon = (Random.nextFloat() * 360.0 - 180.0)
+        val station = com.example.data.GeoData.dopplerStations[counter % com.example.data.GeoData.dopplerStations.size]
+        val lat = (station.location.lat + (counter % 3) * 0.8).coerceIn(-80.0, 80.0)
+        val lon = (station.location.lon + (counter % 4) * 0.8)
+        val dbz = 44.5f
         return ScannedSpot(
             id = "spot_${counter}_${System.currentTimeMillis()}",
             location = GeoPoint(lat, lon),
-            name = "AI NEURAL CELL #$counter",
-            type = ScannedSpotType.AI_NEURAL_ANOMALY,
+            name = "${station.callsign} RADAR SWEEP",
+            type = ScannedSpotType.HEAVY_RAIN,
             accuracyPct = accuracy,
-            windKts = Random.nextInt(25, 80),
-            humidityPct = Random.nextInt(50, 95),
-            aqi = Random.nextInt(20, 75),
-            detectedTick = System.currentTimeMillis()
+            windKts = 42,
+            humidityPct = 88,
+            aqi = 22,
+            detectedTick = System.currentTimeMillis(),
+            precipitationRateMmH = dbzToPrecipMmH(dbz),
+            reflectivityDbz = dbz,
+            echoTopKft = 36,
+            radarStationCallsign = station.callsign
         )
     }
 

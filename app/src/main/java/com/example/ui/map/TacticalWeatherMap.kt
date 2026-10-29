@@ -2427,8 +2427,8 @@ private fun DrawScope.drawTacticalScanningBox(
         isAntiAlias = true
     }
     drawContext.canvas.nativeCanvas.apply {
-        drawText("[■] VOLUMETRIC SCAN BOX", x0, y0 - 8f, textPaint)
-        drawText("AZ: ${(angleDeg % 360).toInt()}° • LOCK: 99.4%", x0, y1 + 22f, smallPaint)
+        drawText("[■] 10cm S-BAND RADAR SCANNER (WSR-88D)", x0, y0 - 8f, textPaint)
+        drawText("AZ: ${(angleDeg % 360).toInt()}° • 2.8GHz DUAL-POL • LEVEL II", x0, y1 + 22f, smallPaint)
         if (targetLocation != null) {
             val latStr = String.format("%.2f", targetLocation.lat)
             val lonStr = String.format("%.2f", targetLocation.lon)
@@ -2859,9 +2859,9 @@ private fun DrawScope.drawScannedSpots(
             )
         }
 
-        // 3. Accuracy Banner Pill directly above the target box
-        val accText = "ACC: ${String.format("%.1f", spot.accuracyPct)}%"
-        val bannerW = 100f
+        // 3. Radar Station & Accuracy Banner Pill directly above the target box
+        val accText = "${spot.radarStationCallsign} • ${String.format("%.1f", spot.accuracyPct)}%"
+        val bannerW = 118f
         val bannerH = 22f
         val bannerX = pos.x - (bannerW / 2f)
         val bannerY = pos.y - halfBox - bannerH - 4f
@@ -2882,16 +2882,16 @@ private fun DrawScope.drawScannedSpots(
             cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
             style = Stroke(width = 1.0f)
         )
-        drawContext.canvas.nativeCanvas.drawText(accText, bannerX + 10f, bannerY + 16f, textPaint)
+        drawContext.canvas.nativeCanvas.drawText(accText, bannerX + 8f, bannerY + 16f, textPaint)
 
-        // 4. Tactical telemetry tag below the target square: [TYPE] WIND • HUM • RAIN
+        // 4. Tactical telemetry tag below the target square: [TYPE] NAME • REFLECTIVITY (dBZ) • PRECIP (mm/h)
         val tagText = "[${spot.type.tag}] ${spot.name}"
         val envText = if (spot.precipitationRateMmH > 0f) {
-            "RAIN: ${String.format(java.util.Locale.US, "%.1f", spot.precipitationRateMmH)}mm/h • HUM ${spot.humidityPct}%"
+            "${String.format(java.util.Locale.US, "%.1f", spot.reflectivityDbz)}dBZ • ${String.format(java.util.Locale.US, "%.1f", spot.precipitationRateMmH)}mm/h • ${spot.echoTopKft}kft"
         } else {
-            "${spot.windKts}kt • HUM ${spot.humidityPct}% • AQI ${spot.aqi}"
+            "${String.format(java.util.Locale.US, "%.1f", spot.reflectivityDbz)}dBZ • ${spot.windKts}kt • HUM ${spot.humidityPct}%"
         }
-        val tagW = 150f
+        val tagW = 175f
         val tagH = 34f
         val tagX = pos.x - (tagW / 2f)
         val tagY = pos.y + halfBox + 4f

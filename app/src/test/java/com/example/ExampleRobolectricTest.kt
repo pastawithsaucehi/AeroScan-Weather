@@ -147,16 +147,30 @@ class ExampleRobolectricTest {
     val rainSpot = com.example.model.ScannedSpot(
       id = "spot_rain_1",
       location = com.example.model.GeoPoint(24.5, -85.2),
-      name = "RAIN-RADAR-CELL",
+      name = "KAMX PRECIP CELL",
       type = spotType,
       accuracyPct = 96.5f,
       windKts = 45,
       humidityPct = 94,
       aqi = 18,
       detectedTick = System.currentTimeMillis(),
-      precipitationRateMmH = 55.4f
+      precipitationRateMmH = 55.4f,
+      reflectivityDbz = 54.2f,
+      echoTopKft = 46,
+      radarStationCallsign = "KAMX"
     )
     assertTrue(rainSpot.precipitationRateMmH > 0f)
     assertEquals(55.4f, rainSpot.precipitationRateMmH, 0.01f)
+    assertEquals(54.2f, rainSpot.reflectivityDbz, 0.01f)
+    assertEquals("KAMX", rainSpot.radarStationCallsign)
+    assertEquals("TORRENTIAL DOWNPOUR", com.example.model.getReflectivityCategory(rainSpot.reflectivityDbz))
+  }
+
+  @Test
+  fun `version 1_4 and 10cm s-band radar scanning active detection alert`() {
+    val repo = WeatherRepository()
+    val vm = StormScanViewModel(repo)
+    assertTrue(vm.uiState.value.activeDetectionAlert.contains("10cm S-BAND RADAR SCANNER ACTIVE"))
+    assertTrue(vm.uiState.value.scanningSpeedSpotsPerSec in 5.0f..15.0f)
   }
 }

@@ -227,8 +227,39 @@ data class ScannedSpot(
     val aqi: Int,
     val detectedTick: Long,
     val boxSizePx: Float = 48f,
-    val precipitationRateMmH: Float = 0f
+    val precipitationRateMmH: Float = 0f,
+    val reflectivityDbz: Float = 45f,
+    val echoTopKft: Int = 38,
+    val radarStationCallsign: String = "WSR-88D"
 )
+
+/**
+ * Standard NWS Doppler Radar Reflectivity Color Scale:
+ * - <25 dBZ: Light Blue / Cyan (Light rain / drizzle)
+ * - 25-39 dBZ: Green (Moderate stratiform rain)
+ * - 40-49 dBZ: Yellow / Amber (Heavy convective rain)
+ * - 50-59 dBZ: Red / Crimson (Severe torrential downpour / storm core)
+ * - >=60 dBZ: Magenta / Dark Purple (Violent cyclone eyewall / hail core)
+ */
+fun getReflectivityColor(dbz: Float): Color {
+    return when {
+        dbz >= 60f -> Color(0xFFD500F9) // Vivid Magenta (Eyewall/Hail)
+        dbz >= 50f -> Color(0xFFFF1744) // Bright Red (Torrential Rain)
+        dbz >= 40f -> Color(0xFFFFD600) // Deep Yellow (Heavy Convection)
+        dbz >= 25f -> Color(0xFF00E676) // Radar Green (Moderate Rain)
+        else -> Color(0xFF00B0FF)       // Light Cyan (Light Rain/Mist)
+    }
+}
+
+fun getReflectivityCategory(dbz: Float): String {
+    return when {
+        dbz >= 60f -> "EXTREME EYEWALL (HAIL/CORE)"
+        dbz >= 50f -> "TORRENTIAL DOWNPOUR"
+        dbz >= 40f -> "HEAVY CONVECTIVE RAIN"
+        dbz >= 25f -> "MODERATE RAIN CELL"
+        else -> "LIGHT PRECIPITATION"
+    }
+}
 
 data class ModelWeatherReport(
     val model: ForecastModel,
