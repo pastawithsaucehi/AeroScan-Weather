@@ -1,0 +1,58 @@
+{
+  "application": "AeroScan PC Desktop Severe Weather Suite",
+  "version": "1.5",
+  "build": 7,
+  "platform": "PC (Windows / Cross-Platform Desktop)",
+  "executable": "AeroScan.exe",
+  "frameworkConfigurations": {
+    "gpuVectorTiling": {
+      "enabled": true,
+      "backendArchitectures": ["WebGL 2.0", "WebGPU", "OpenGL Vertex Arrays"],
+      "defaultFramerate": 60,
+      "targetFramerate": 60,
+      "dynamicFramerateSupported": true,
+      "supportedFramerates": [30, 60, 120],
+      "tileGridSizePx": 64,
+      "vectorAntialiasing": true,
+      "objective": "Eliminate all CPU rendering bottlenecks during dense spatial mapping cycles"
+    },
+    "satAiPredictiveInfrastructure": {
+      "opticalFlow": {
+        "engine": "Farneback Optical Flow Neural Network (OF-NN)",
+        "analyzing": "Cloud-top visual fluid dynamics and raster sequences",
+        "sampleRateMs": 250,
+        "vectorFieldResolution": "16x16"
+      },
+      "dbscanClustering": {
+        "enabled": true,
+        "algorithm": "Density-Based Spatial Clustering of Applications with Noise",
+        "epsilonDegrees": 1.8,
+        "minPoints": 3,
+        "targetFeatures": ["High-Density Radar Cores", "Lightning Arrays", "Severe Reflectivity Cores (>50 dBZ)"]
+      }
+    },
+    "groundTruthValidation": {
+      "protocol": "Coordinate-targeted sub-routine API verification",
+      "agency": "BMKG (Indonesia Meteorological, Climatological, and Geophysical Agency)",
+      "endpoints": [
+        "https://data.bmkg.go.id/DataMKG/TEWS/live_buoy_telemetry.json",
+        "https://api.bmkg.go.id/v1/maritime/surface_obs"
+      ],
+      "telemetryMonitors": ["Surface Barometric Pressure (hPa)", "Real-time Wind Speed (kts)", "Maritime Buoy Wave Height (m)"],
+      "logicRule": "Double-verify AI predictive model track by cross-referencing surface barometric pressures and real-time wind speeds before normalizing output profiles",
+      "pressureToleranceHpa": 2.5,
+      "windToleranceKts": 8.0
+    }
+  },
+  "radarSpecifications": {
+    "band": "10cm S-Band Doppler",
+    "sweepFrequencyRpm": 12.0,
+    "maxRangeKm": 460.0,
+    "reflectivityLevels": {
+      "TORRENTIAL": ">= 50 dBZ (Red)",
+      "SEVERE": "40-49 dBZ (Amber)",
+      "MODERATE": "25-39 dBZ (Green/Cyan)",
+      "LIGHT": "< 25 dBZ (Blue)"
+    }
+  }
+}
