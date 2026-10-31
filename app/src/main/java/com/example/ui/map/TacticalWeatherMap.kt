@@ -49,6 +49,12 @@ import com.example.model.getCycloneForecastIntensity
 import com.example.model.getCycloneIntensityColor
 import com.example.model.getCycloneIntensityAccentColor
 import com.example.model.getCycloneIntensityCategory
+import com.example.model.DbscanCluster
+import com.example.model.OpticalFlowVector
+import com.example.model.BmkgBuoyStation
+import com.example.model.BmkgGroundTruthVerification
+import com.example.model.BmkgVerificationStatus
+import com.example.model.TargetFramerateFps
 import com.example.ui.theme.CoastlineBorder
 import com.example.ui.theme.CoastlineGlow
 import com.example.ui.theme.CoastalShelf
@@ -83,6 +89,8 @@ fun TacticalWeatherMap(
     onSelectSatellite: (Satellite) -> Unit,
     onSelectScannedSpot: (ScannedSpot) -> Unit = {},
     onSelectSurgeZone: (SurgeRiskZone) -> Unit = {},
+    onSelectDbscanCluster: (DbscanCluster) -> Unit = {},
+    onSelectBmkgBuoy: (BmkgBuoyStation) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val continents = remember { GeoData.continents }
@@ -106,6 +114,8 @@ fun TacticalWeatherMap(
     val currentServers by rememberUpdatedState(uiState.servers)
     val currentSatellites by rememberUpdatedState(uiState.satellites)
     val currentScannedSpots by rememberUpdatedState(uiState.scannedSpots)
+    val currentDbscanClusters by rememberUpdatedState(uiState.dbscanClusters)
+    val currentBmkgBuoys by rememberUpdatedState(uiState.bmkgBuoys)
     val currentForecastHourOffset by rememberUpdatedState(uiState.forecastHourOffset)
     val currentShowServers by rememberUpdatedState(uiState.showServersOnMap && uiState.activeLayers.contains(MapLayerType.SERVERS))
     val currentShowSatellites by rememberUpdatedState(uiState.showSatelliteTelemetry && uiState.activeLayers.contains(MapLayerType.SATELLITES))
@@ -120,6 +130,8 @@ fun TacticalWeatherMap(
     val currentOnSelectServer by rememberUpdatedState(onSelectServer)
     val currentOnSelectSatellite by rememberUpdatedState(onSelectSatellite)
     val currentOnSelectScannedSpot by rememberUpdatedState(onSelectScannedSpot)
+    val currentOnSelectDbscanCluster by rememberUpdatedState(onSelectDbscanCluster)
+    val currentOnSelectBmkgBuoy by rememberUpdatedState(onSelectBmkgBuoy)
 
     Canvas(
         modifier = modifier
@@ -288,14 +300,26 @@ fun TacticalWeatherMap(
                         }
                     }
 
-                    // Check if tapped near a scanned spot's red tactical box
-                    val nearestSpot = currentScannedSpots.minByOrNull {
+                    // Check if tapped near a BMKG maritime buoy or coastal AWS
+                    val nearestBuoy = currentBmkgBuoys.minByOrNull {
                         calculateDistancePixels(offset, projectPointNearest(it.location, w, h, centerLat, centerLon, zoom))
                     }
-                    if (nearestSpot != null) {
-                        val pix = projectPointNearest(nearestSpot.location, w, h, centerLat, centerLon, zoom)
-                        if (calculateDistancePixels(offset, pix) < 42f) {
-                            currentOnSelectScannedSpot(nearestSpot)
+                    if (nearestBuoy != null) {
+                        val pix = projectPointNearest(nearestBuoy.location, w, h, centerLat, centerLon, zoom)
+                        if (calculateDistancePixels(offset, pix) < 45f) {
+                            currentOnSelectBmkgBuoy(nearestBuoy)
+                            return@detectTapGestures
+                        }
+                    }
+
+                    // Check if tapped near a DBSCAN cluster centroid
+                    val nearestCluster = currentDbscanClusters.minByOrNull {
+                        calculateDistancePixels(offset, projectPointNearest(it.centroid, w, h, centerLat, centerLon, zoom))
+                    }
+                    if (nearestCluster != null) {
+                        val pix = projectPointNearest(nearestCluster.centroid, w, h, centerLat, centerLon, zoom)
+                        if (calculateDistancePixels(offset, pix) < 55f) {
+                            currentOnSelectDbscanCluster(nearestCluster)
                             return@detectTapGestures
                         }
                     }
@@ -584,6 +608,26 @@ fun TacticalWeatherMap(
             pulse = uiState.pulsePhase,
             isDark = isDark
         )
+
+        // 13f. SAT + AI PREDICTIVE INFRASTRUCTURE: Optical Flow Neural Network Fluid Dynamics Field
+        if (uiState.activeLayers.contains(MapLayerType.OPTICAL_FLOW)) {
+            drawOpticalFlowField(uiState.opticalFlowVectors, w, h, centerLat, centerLon, zoom, uiState.pulsePhase, isDark)
+        }
+
+        // 13g. SAT + AI PREDICTIVE INFRASTRUCTURE: Spatial DBSCAN Clustering Routine
+        if (uiState.dbscanClusteringEnabled && uiState.activeLayers.contains(MapLayerType.DBSCAN_CLUSTERS)) {
+            drawDbscanClusters(uiState.dbscanClusters, uiState.selectedDbscanCluster, w, h, centerLat, centerLon, zoom, uiState.pulsePhase, isDark)
+        }
+
+        // 13h. GROUND-TRUTH VALIDATION FRAMEWORK: BMKG Maritime Buoy Network & Verification Links
+        if (uiState.activeLayers.contains(MapLayerType.BMKG_BUOYS)) {
+            drawBmkgBuoys(uiState.bmkgBuoys, uiState.selectedBmkgBuoy, uiState.activeGroundTruthVerification, w, h, centerLat, centerLon, zoom, uiState.pulsePhase, isDark)
+        }
+
+        // 13i. High-Performance Graphics Engine GPU Vector Tiling Status Telemetry
+        if (uiState.gpuVectorTilingEnabled) {
+            drawGpuVectorTilingBadge(uiState.targetFramerate, w, h, isDark)
+        }
 
         // 14. Atmospheric Probe Reticle
         uiState.atmosphericProbe?.let { probe ->
@@ -3736,6 +3780,380 @@ private fun DrawScope.drawNavCorridors(
                 textPaint
             )
         }
+    }
+}
+
+// -------------------------------------------------------------
+// 2. SAT + AI PREDICTIVE INFRASTRUCTURE: OPTICAL FLOW VECTOR FIELD
+// -------------------------------------------------------------
+private fun DrawScope.drawOpticalFlowField(
+    vectors: List<OpticalFlowVector>,
+    w: Float,
+    h: Float,
+    centerLat: Double,
+    centerLon: Double,
+    zoom: Float,
+    phase: Float,
+    isDark: Boolean
+) {
+    if (vectors.isEmpty()) return
+
+    val textPaint = Paint().apply {
+        isAntiAlias = true
+        typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+        textSize = (10f * zoom.coerceIn(0.8f, 1.3f)).coerceIn(8f, 13f)
+        color = android.graphics.Color.argb(220, 0, 229, 255)
+    }
+
+    for (v in vectors) {
+        val p = projectPointNearest(v.location, w, h, centerLat, centerLon, zoom)
+        if (p.x < -60f || p.x > w + 60f || p.y < -60f || p.y > h + 60f) continue
+
+        val angleRad = atan2(v.vVelocity.toDouble(), v.uVelocity.toDouble()).toFloat()
+        val vectorLen = (v.speedKts * 0.45f * zoom.coerceIn(0.7f, 1.5f)).coerceIn(12f, 38f)
+
+        val vectorColor = if (v.vorticity >= 8.0f) {
+            Color(0xFFE040FB)
+        } else if (v.speedKts >= 60f) {
+            Color(0xFFFF5252)
+        } else {
+            Color(0xFF00E5FF)
+        }
+
+        val startX = p.x - (cos(angleRad) * vectorLen * 0.4f)
+        val startY = p.y - (sin(angleRad) * vectorLen * 0.4f)
+        val endX = p.x + (cos(angleRad) * vectorLen * 0.6f)
+        val endY = p.y + (sin(angleRad) * vectorLen * 0.6f)
+
+        // Streamline
+        drawLine(
+            color = vectorColor.copy(alpha = 0.75f),
+            start = Offset(startX, startY),
+            end = Offset(endX, endY),
+            strokeWidth = 2.0f,
+            cap = StrokeCap.Round
+        )
+
+        // Arrow head
+        val headAngle1 = angleRad + 2.6f
+        val headAngle2 = angleRad - 2.6f
+        val headLen = 6f
+        drawLine(
+            color = vectorColor,
+            start = Offset(endX, endY),
+            end = Offset(endX + cos(headAngle1) * headLen, endY + sin(headAngle1) * headLen),
+            strokeWidth = 2.0f,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = vectorColor,
+            start = Offset(endX, endY),
+            end = Offset(endX + cos(headAngle2) * headLen, endY + sin(headAngle2) * headLen),
+            strokeWidth = 2.0f,
+            cap = StrokeCap.Round
+        )
+
+        // Fluid dynamic particle pulse
+        val pulseFraction = ((phase * 3f + (v.id.hashCode() % 10) * 0.1f) % 1f)
+        val pulseX = startX + (endX - startX) * pulseFraction
+        val pulseY = startY + (endY - startY) * pulseFraction
+        drawCircle(
+            color = Color.White,
+            radius = 1.8f,
+            center = Offset(pulseX, pulseY)
+        )
+
+        if (zoom > 1.35f) {
+            drawContext.canvas.nativeCanvas.drawText(
+                "${v.speedKts.toInt()}kt ω:${v.vorticity}",
+                endX + 4f,
+                endY + 3f,
+                textPaint
+            )
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// 2. SAT + AI PREDICTIVE INFRASTRUCTURE: SPATIAL DBSCAN CLUSTERING
+// -------------------------------------------------------------
+private fun DrawScope.drawDbscanClusters(
+    clusters: List<DbscanCluster>,
+    selected: DbscanCluster?,
+    w: Float,
+    h: Float,
+    centerLat: Double,
+    centerLon: Double,
+    zoom: Float,
+    pulse: Float,
+    isDark: Boolean
+) {
+    if (clusters.isEmpty()) return
+
+    val labelPaint = Paint().apply {
+        isAntiAlias = true
+        typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+        textSize = 10.5f
+        color = android.graphics.Color.WHITE
+    }
+
+    val badgeBgPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.FILL
+        color = android.graphics.Color.argb(215, 15, 23, 42)
+    }
+
+    val badgeStrokePaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.STROKE
+        strokeWidth = 1.4f
+    }
+
+    for (cluster in clusters) {
+        val centroidPx = projectPointNearest(cluster.centroid, w, h, centerLat, centerLon, zoom)
+        val isSelected = selected?.clusterId == cluster.clusterId
+
+        val clusterColor = when {
+            cluster.maxReflectivityDbz >= 60f -> Color(0xFFD500F9)
+            cluster.maxReflectivityDbz >= 50f -> Color(0xFFFF1744)
+            cluster.maxReflectivityDbz >= 40f -> Color(0xFFFFD600)
+            else -> Color(0xFF00E676)
+        }
+
+        // Bounding Polygon Hull
+        if (cluster.boundingHull.size >= 3) {
+            val hullPath = Path()
+            cluster.boundingHull.forEachIndexed { idx, pt ->
+                val p = projectPointNearest(pt, w, h, centerLat, centerLon, zoom)
+                if (idx == 0) hullPath.moveTo(p.x, p.y) else hullPath.lineTo(p.x, p.y)
+            }
+            hullPath.close()
+
+            drawPath(
+                path = hullPath,
+                color = clusterColor.copy(alpha = if (isSelected) 0.28f else 0.12f),
+                style = Fill
+            )
+
+            drawPath(
+                path = hullPath,
+                color = clusterColor.copy(alpha = if (isSelected) 0.95f else 0.65f),
+                style = Stroke(
+                    width = if (isSelected) 2.5f else 1.5f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), pulse * 14f)
+                )
+            )
+        }
+
+        // Centroid Reticle
+        if (centroidPx.x in -50f..(w + 50f) && centroidPx.y in -50f..(h + 50f)) {
+            val reticleRadius = 13f + (if (isSelected) sin(pulse * 6.28f) * 3f else 0f)
+            drawCircle(
+                color = clusterColor,
+                radius = reticleRadius,
+                center = centroidPx,
+                style = Stroke(width = 1.6f)
+            )
+            drawCircle(
+                color = clusterColor,
+                radius = 3f,
+                center = centroidPx,
+                style = Fill
+            )
+
+            // Telemetry Badge
+            val pillText = "DBSCAN #${cluster.clusterId} [${cluster.pointCount} PTS • ${cluster.maxReflectivityDbz.toInt()} dBZ]"
+            val textWidth = labelPaint.measureText(pillText)
+            val pillX = centroidPx.x - (textWidth / 2f)
+            val pillY = centroidPx.y + reticleRadius + 16f
+
+            badgeStrokePaint.color = clusterColor.toArgb()
+            drawContext.canvas.nativeCanvas.drawRoundRect(
+                pillX - 6f,
+                pillY - 13f,
+                pillX + textWidth + 6f,
+                pillY + 5f,
+                5f,
+                5f,
+                badgeBgPaint
+            )
+            drawContext.canvas.nativeCanvas.drawRoundRect(
+                pillX - 6f,
+                pillY - 13f,
+                pillX + textWidth + 6f,
+                pillY + 5f,
+                5f,
+                5f,
+                badgeStrokePaint
+            )
+            drawContext.canvas.nativeCanvas.drawText(pillText, pillX, pillY, labelPaint)
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// 3. GROUND-TRUTH VALIDATION FRAMEWORK: BMKG BUOYS & TELEMETRY
+// -------------------------------------------------------------
+private fun DrawScope.drawBmkgBuoys(
+    buoys: List<BmkgBuoyStation>,
+    selected: BmkgBuoyStation?,
+    verification: BmkgGroundTruthVerification?,
+    w: Float,
+    h: Float,
+    centerLat: Double,
+    centerLon: Double,
+    zoom: Float,
+    pulse: Float,
+    isDark: Boolean
+) {
+    if (buoys.isEmpty()) return
+
+    val labelPaint = Paint().apply {
+        isAntiAlias = true
+        typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+        textSize = 10f
+        color = android.graphics.Color.WHITE
+    }
+
+    val subPaint = Paint().apply {
+        isAntiAlias = true
+        typeface = Typeface.MONOSPACE
+        textSize = 9f
+        color = android.graphics.Color.argb(220, 0, 230, 118)
+    }
+
+    val bgPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.FILL
+        color = android.graphics.Color.argb(220, 10, 25, 47)
+    }
+
+    val borderPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.STROKE
+        strokeWidth = 1.2f
+        color = android.graphics.Color.argb(255, 0, 230, 118)
+    }
+
+    for (buoy in buoys) {
+        val p = projectPointNearest(buoy.location, w, h, centerLat, centerLon, zoom)
+        if (p.x < -60f || p.x > w + 60f || p.y < -60f || p.y > h + 60f) continue
+
+        val isSelected = selected?.id == buoy.id
+        val isVerifiedTarget = verification?.nearestStation?.id == buoy.id
+        val buoyColor = if (isVerifiedTarget) Color(0xFF00E676) else Color(0xFF00E5FF)
+
+        // Radar acoustic ping
+        val pingRadius = 7f + (pulse * 20f)
+        val pingAlpha = (1f - pulse).coerceIn(0f, 1f) * 0.7f
+        drawCircle(
+            color = buoyColor.copy(alpha = pingAlpha),
+            radius = pingRadius,
+            center = p,
+            style = Stroke(width = 1.3f)
+        )
+
+        // Moored buoy diamond marker
+        val dSize = 6.5f
+        val buoyPath = Path().apply {
+            moveTo(p.x, p.y - dSize)
+            lineTo(p.x + dSize, p.y)
+            lineTo(p.x, p.y + dSize)
+            lineTo(p.x - dSize, p.y)
+            close()
+        }
+        drawPath(buoyPath, color = buoyColor, style = Fill)
+        drawPath(buoyPath, color = Color.White, style = Stroke(width = 1.3f))
+        drawCircle(color = Color.Black, radius = 2f, center = p)
+
+        // Buoy telemetry card
+        val line1 = "BMKG ${buoy.stationType.iconTag}: ${buoy.name.take(18)}"
+        val line2 = "${buoy.barometricPressureHpa} hPa • ${buoy.windSpeedKts} kt • ${buoy.seaSurfaceTempC}°C"
+        val textWidth = maxOf(labelPaint.measureText(line1), subPaint.measureText(line2))
+
+        val cardX = p.x + 10f
+        val cardY = p.y - 10f
+
+        if (cardX + textWidth < w && cardY > 20f) {
+            drawContext.canvas.nativeCanvas.drawRoundRect(
+                cardX - 4f,
+                cardY - 13f,
+                cardX + textWidth + 6f,
+                cardY + 15f,
+                4f,
+                4f,
+                bgPaint
+            )
+            borderPaint.color = buoyColor.toArgb()
+            drawContext.canvas.nativeCanvas.drawRoundRect(
+                cardX - 4f,
+                cardY - 13f,
+                cardX + textWidth + 6f,
+                cardY + 15f,
+                4f,
+                4f,
+                borderPaint
+            )
+            drawContext.canvas.nativeCanvas.drawText(line1, cardX, cardY - 2f, labelPaint)
+            drawContext.canvas.nativeCanvas.drawText(line2, cardX, cardY + 9f, subPaint)
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// 1. HIGH-PERFORMANCE GRAPHICS ENGINE: GPU VECTOR TILING BADGE
+// -------------------------------------------------------------
+private fun DrawScope.drawGpuVectorTilingBadge(
+    framerate: TargetFramerateFps,
+    w: Float,
+    h: Float,
+    isDark: Boolean
+) {
+    val badgePaint = Paint().apply {
+        isAntiAlias = true
+        typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+        textSize = 9.5f
+        color = android.graphics.Color.argb(210, 0, 229, 255)
+    }
+
+    val bgPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.FILL
+        color = android.graphics.Color.argb(200, 10, 15, 30)
+    }
+
+    val borderPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.STROKE
+        strokeWidth = 1.0f
+        color = android.graphics.Color.argb(160, 0, 229, 255)
+    }
+
+    val text = "GPU VECTOR TILING: 60 FPS LOCKED • ${framerate.label} • OPENGL VERTEX ARRAYS"
+    val textWidth = badgePaint.measureText(text)
+    val x = w - textWidth - 16f
+    val y = h - 14f
+
+    if (x > 10f) {
+        drawContext.canvas.nativeCanvas.drawRoundRect(
+            x - 6f,
+            y - 12f,
+            x + textWidth + 6f,
+            y + 4f,
+            4f,
+            4f,
+            bgPaint
+        )
+        drawContext.canvas.nativeCanvas.drawRoundRect(
+            x - 6f,
+            y - 12f,
+            x + textWidth + 6f,
+            y + 4f,
+            4f,
+            4f,
+            borderPaint
+        )
+        drawContext.canvas.nativeCanvas.drawText(text, x, y, badgePaint)
     }
 }
 

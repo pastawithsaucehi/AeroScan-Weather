@@ -189,7 +189,10 @@ enum class MapLayerType(
     DATA_LINKS("Satellite Lasers", "ElectricBolt"),
     SATELLITES("Satellites", "Satellite"),
     SERVERS("Supercomputers", "Dns"),
-    LIGHTNING("Lightning (ENTLN)", "Bolt")
+    LIGHTNING("Lightning (ENTLN)", "Bolt"),
+    OPTICAL_FLOW("Optical Flow AI", "Waves"),
+    DBSCAN_CLUSTERS("DBSCAN Clusters", "FilterCenterFocus"),
+    BMKG_BUOYS("BMKG Ground-Truth", "Anchor")
 }
 
 enum class MapScanType(
@@ -270,6 +273,105 @@ data class ModelWeatherReport(
     val trackErrorKm: Int,
     val confidencePct: Float,
     val forecastSummary: String
+)
+
+/**
+ * 1. HIGH-PERFORMANCE GRAPHICS ENGINE (GPU VECTOR TILING)
+ * Framerate target configuration: Locked 60 FPS default, dynamic runtime modification.
+ */
+enum class TargetFramerateFps(
+    val fps: Int,
+    val label: String,
+    val intervalMs: Long
+) {
+    FPS_30(30, "30 FPS (Power Save)", 33L),
+    FPS_60(60, "60 FPS (Default Locked)", 16L),
+    FPS_90(90, "90 FPS (Fluid Ultra)", 11L),
+    FPS_120(120, "120 FPS (High Refresh)", 8L)
+}
+
+/**
+ * 2. SAT + AI PREDICTIVE INFRASTRUCTURE
+ * Optical Flow Neural Network vector field analyzing cloud-top fluid dynamics.
+ */
+data class OpticalFlowVector(
+    val id: String,
+    val location: GeoPoint,
+    val uVelocity: Float, // zonal component (m/s)
+    val vVelocity: Float, // meridional component (m/s)
+    val speedKts: Float,
+    val vorticity: Float, // rotational curl rate (10^-5 s^-1)
+    val divergence: Float, // visual fluid expansion
+    val cloudTopTempC: Float
+)
+
+/**
+ * Spatial DBSCAN (Density-Based Spatial Clustering of Applications with Noise)
+ * Groups and isolates high-density radar cores and lightning arrays from noise.
+ */
+data class DbscanCluster(
+    val clusterId: Int,
+    val name: String,
+    val centroid: GeoPoint,
+    val memberIds: List<String>,
+    val pointCount: Int,
+    val densityRating: Float, // points per sq degree
+    val coreType: ScannedSpotType,
+    val radiusKm: Float,
+    val maxReflectivityDbz: Float,
+    val maxPrecipRateMmH: Float,
+    val boundingHull: List<GeoPoint>
+)
+
+/**
+ * 3. GROUND-TRUTH VALIDATION FRAMEWORK
+ * BMKG (Indonesia Meteorological, Climatological, and Geophysical Agency)
+ * Maritime Buoys and Coastal Surface Telemetry AWS.
+ */
+enum class BmkgStationType(val label: String, val iconTag: String) {
+    MARITIME_BUOY("Deep-Sea Moored Buoy", "BUOY"),
+    COASTAL_AWS("Coastal Automated Station", "AWS"),
+    OFFSHORE_RIG("Offshore Maritime Rig", "RIG")
+}
+
+data class BmkgBuoyStation(
+    val id: String,
+    val name: String,
+    val location: GeoPoint,
+    val stationType: BmkgStationType,
+    val barometricPressureHpa: Float,
+    val windSpeedKts: Int,
+    val windDirectionDeg: Int,
+    val seaSurfaceTempC: Float,
+    val significantWaveHeightM: Float,
+    val waterSalinityPsu: Float,
+    val oceanBasin: String,
+    val lastPingTimestamp: Long = System.currentTimeMillis()
+)
+
+enum class BmkgVerificationStatus(
+    val label: String,
+    val color: Color,
+    val badge: String
+) {
+    DOUBLE_VERIFIED("Ground-Truth Double Verified", Color(0xFF00E676), "VERIFIED 100%"),
+    NORMALIZED_BIAS("Normalized AI Bias Corrected", Color(0xFF00E5FF), "CALIBRATED"),
+    ANOMALY_DISCREPANCY("Ground-Truth Discrepancy Alert", Color(0xFFFF9100), "DISCREPANCY")
+}
+
+data class BmkgGroundTruthVerification(
+    val targetId: String,
+    val targetName: String,
+    val nearestStation: BmkgBuoyStation,
+    val distanceKm: Float,
+    val aiPredictedPressureHpa: Float,
+    val aiPredictedWindKts: Int,
+    val deltaPressureHpa: Float,
+    val deltaWindKts: Int,
+    val status: BmkgVerificationStatus,
+    val normalizedPressureHpa: Float,
+    val normalizedWindKts: Int,
+    val verificationTimestamp: Long = System.currentTimeMillis()
 )
 
 enum class TerrainMapStyle(

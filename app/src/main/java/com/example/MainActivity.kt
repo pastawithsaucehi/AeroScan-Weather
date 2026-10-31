@@ -59,7 +59,9 @@ class MainActivity : ComponentActivity() {
                         onSelectServer = { server -> viewModel.selectServer(server) },
                         onSelectSatellite = { sat -> viewModel.selectSatellite(sat) },
                         onSelectScannedSpot = { spot -> viewModel.selectScannedSpot(spot) },
-                        onSelectSurgeZone = { zone -> viewModel.selectSurgeZone(zone) }
+                        onSelectSurgeZone = { zone -> viewModel.selectSurgeZone(zone) },
+                        onSelectDbscanCluster = { cluster -> viewModel.selectDbscanCluster(cluster) },
+                        onSelectBmkgBuoy = { buoy -> viewModel.selectBmkgBuoy(buoy) }
                     )
 
                     // Minimalist tactical HUD overlay with modes, settings and scanned spots
@@ -98,7 +100,14 @@ class MainActivity : ComponentActivity() {
                         onTogglePlayTimeline = { viewModel.togglePlayTimeline() },
                         onSetProjectionType = { type -> viewModel.setProjectionType(type) },
                         onToggleProjectionType = { viewModel.toggleProjectionType() },
-                        onSetScannerBeamStyle = { style -> viewModel.setScannerBeamStyle(style) }
+                        onSetScannerBeamStyle = { style -> viewModel.setScannerBeamStyle(style) },
+                        onSetTargetFramerate = { target -> viewModel.setTargetFramerate(target) },
+                        onToggleGpuVectorTiling = { viewModel.toggleGpuVectorTiling() },
+                        onToggleDbscanClustering = { viewModel.toggleDbscanClustering() },
+                        onTriggerBmkgVerification = { cyclone, spot -> viewModel.triggerBmkgGroundTruthVerification(cyclone, spot) },
+                        onDismissBmkgVerification = { viewModel.dismissGroundTruthVerification() },
+                        onSelectDbscanCluster = { cluster -> viewModel.selectDbscanCluster(cluster) },
+                        onSelectBmkgBuoy = { buoy -> viewModel.selectBmkgBuoy(buoy) }
                     )
                 }
             }

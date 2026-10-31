@@ -25,6 +25,11 @@ import com.example.model.SurgeRiskZone
 import com.example.model.MapProjectionType
 import com.example.model.TerrainMapStyle
 import com.example.model.WindSpeedUnit
+import com.example.model.TargetFramerateFps
+import com.example.model.OpticalFlowVector
+import com.example.model.DbscanCluster
+import com.example.model.BmkgBuoyStation
+import com.example.model.BmkgGroundTruthVerification
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,7 +74,10 @@ data class StormScanUiState(
         MapLayerType.DATA_LINKS,
         MapLayerType.SERVERS,
         MapLayerType.SATELLITES,
-        MapLayerType.LIGHTNING
+        MapLayerType.LIGHTNING,
+        MapLayerType.OPTICAL_FLOW,
+        MapLayerType.DBSCAN_CLUSTERS,
+        MapLayerType.BMKG_BUOYS
     ),
     val terrainStyle: TerrainMapStyle = TerrainMapStyle.SATELLITE_TOPO,
     val mapScanType: MapScanType = MapScanType.COMBINED_SATELLITE_AI,
@@ -123,6 +131,16 @@ data class StormScanUiState(
     val showSurgeVectors: Boolean = true,
     val surgeRiskZones: List<SurgeRiskZone> = emptyList(),
     val selectedSurgeZone: SurgeRiskZone? = null,
+    val targetFramerate: TargetFramerateFps = TargetFramerateFps.FPS_60,
+    val gpuVectorTilingEnabled: Boolean = true,
+    val dbscanClusteringEnabled: Boolean = true,
+    val dbscanClusters: List<DbscanCluster> = emptyList(),
+    val selectedDbscanCluster: DbscanCluster? = null,
+    val opticalFlowVectors: List<OpticalFlowVector> = emptyList(),
+    val bmkgBuoys: List<BmkgBuoyStation> = emptyList(),
+    val selectedBmkgBuoy: BmkgBuoyStation? = null,
+    val activeGroundTruthVerification: BmkgGroundTruthVerification? = null,
+    val isBmkgVerifying: Boolean = false,
     val dspProcessingStage: String = "PULSE COMPRESSION • DOPPLER FFT",
     val fftSpectralPeaks: List<Float> = listOf(0.42f, 0.78f, 0.95f, 0.62f, 0.88f, 0.51f, 0.74f, 0.91f, 0.38f, 0.66f, 0.82f, 0.49f),
     val rfPrfHz: Int = 1200,
@@ -142,6 +160,8 @@ class StormScanViewModel(
             surgeRiskZones = repository.surgeRiskZones,
             servers = repository.servers,
             satellites = repository.satellites,
+            bmkgBuoys = repository.bmkgBuoyStations,
+            opticalFlowVectors = repository.generateOpticalFlowField(repository.cyclones, 0f),
             selectedCyclone = null
         )
     )
@@ -155,7 +175,7 @@ class StormScanViewModel(
             _uiState.update { it.copy(localCacheCount = count) }
         }
 
-        // Real-time animation, radar sweep, particle streams, and lightning ticker (60fps)
+        // Real-time animation, radar sweep, particle streams, and lightning ticker (controlled by targetFramerate FPS)
         viewModelScope.launch {
             var angle = 0f
             var pulse = 0f
@@ -196,6 +216,19 @@ class StormScanViewModel(
                         )
                     }
 
+                    // SAT + AI PREDICTIVE INFRASTRUCTURE: Routine DBSCAN clustering & Optical Flow update
+                    var updatedClusters = _uiState.value.dbscanClusters
+                    var updatedFlow = _uiState.value.opticalFlowVectors
+
+                    if (tick % 20 == 0L) {
+                        if (_uiState.value.dbscanClusteringEnabled && _uiState.value.scannedSpots.isNotEmpty()) {
+                            updatedClusters = repository.runDbscanClustering(_uiState.value.scannedSpots)
+                        }
+                        if (_uiState.value.activeLayers.contains(MapLayerType.OPTICAL_FLOW)) {
+                            updatedFlow = repository.generateOpticalFlowField(_uiState.value.cyclones, pulse)
+                        }
+                    }
+
                     _uiState.update { current ->
                         current.copy(
                             radarScanAngleDeg = angle,
@@ -203,6 +236,8 @@ class StormScanViewModel(
                             windParticlePhase = particle,
                             dataPacketPhase = packet,
                             lightningFlashes = newFlashes,
+                            dbscanClusters = updatedClusters,
+                            opticalFlowVectors = updatedFlow,
                             framesProcessedCount = current.framesProcessedCount + 1,
                             fftSpectralPeaks = dynamicPeaks,
                             aiInferenceLatencyMs = (13.5f + (tick % 10) * 0.18f)
@@ -215,7 +250,8 @@ class StormScanViewModel(
                         _uiState.update { it.copy(localCacheCount = count) }
                     }
                 }
-                delay(20)
+                // High-performance graphics framerate pacing: interval derived dynamically from TargetFramerateFps
+                delay(_uiState.value.targetFramerate.intervalMs)
             }
         }
 
@@ -698,9 +734,110 @@ class StormScanViewModel(
                 selectedSatellite = null,
                 selectedSurgeZone = null,
                 selectedScannedSpot = null,
+                selectedDbscanCluster = null,
+                selectedBmkgBuoy = null,
+                activeGroundTruthVerification = null,
                 atmosphericProbe = null
             )
         }
+    }
+
+    fun setTargetFramerate(target: TargetFramerateFps) {
+        _uiState.update { it.copy(targetFramerate = target) }
+    }
+
+    fun toggleGpuVectorTiling() {
+        _uiState.update { it.copy(gpuVectorTilingEnabled = !it.gpuVectorTilingEnabled) }
+    }
+
+    fun toggleDbscanClustering() {
+        _uiState.update { current ->
+            val nextState = !current.dbscanClusteringEnabled
+            val updatedClusters = if (nextState) repository.runDbscanClustering(current.scannedSpots) else emptyList()
+            current.copy(
+                dbscanClusteringEnabled = nextState,
+                dbscanClusters = updatedClusters,
+                selectedDbscanCluster = if (!nextState) null else current.selectedDbscanCluster
+            )
+        }
+    }
+
+    fun selectDbscanCluster(cluster: DbscanCluster?) {
+        _uiState.update {
+            it.copy(
+                selectedDbscanCluster = cluster,
+                selectedCyclone = null,
+                selectedWindArea = null,
+                selectedServer = null,
+                selectedSatellite = null,
+                selectedScannedSpot = null,
+                selectedBmkgBuoy = null
+            )
+        }
+        if (cluster != null) {
+            centerOnCoordinate(cluster.centroid.lat, cluster.centroid.lon, 2.0f)
+            probeLocation(cluster.centroid)
+        }
+    }
+
+    fun selectBmkgBuoy(buoy: BmkgBuoyStation?) {
+        _uiState.update {
+            it.copy(
+                selectedBmkgBuoy = buoy,
+                selectedCyclone = null,
+                selectedWindArea = null,
+                selectedServer = null,
+                selectedSatellite = null,
+                selectedScannedSpot = null,
+                selectedDbscanCluster = null
+            )
+        }
+        if (buoy != null) {
+            centerOnCoordinate(buoy.location.lat, buoy.location.lon, 2.2f)
+            probeLocation(buoy.location)
+        }
+    }
+
+    fun triggerBmkgGroundTruthVerification(cyclone: Cyclone? = null, spot: ScannedSpot? = null) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isBmkgVerifying = true) }
+            val target = cyclone ?: _uiState.value.selectedCyclone ?: _uiState.value.cyclones.firstOrNull()
+            if (target != null) {
+                val verification = repository.verifyTargetWithBmkgGroundTruth(
+                    targetId = target.id,
+                    targetName = target.name,
+                    targetLocation = target.currentLocation,
+                    aiPredictedPressureHpa = target.centralPressureHpa.toFloat(),
+                    aiPredictedWindKts = target.sustainedWindKts
+                )
+                _uiState.update {
+                    it.copy(
+                        activeGroundTruthVerification = verification,
+                        isBmkgVerifying = false
+                    )
+                }
+            } else if (spot != null) {
+                val verification = repository.verifyTargetWithBmkgGroundTruth(
+                    targetId = spot.id,
+                    targetName = spot.name,
+                    targetLocation = spot.location,
+                    aiPredictedPressureHpa = 1005.0f,
+                    aiPredictedWindKts = spot.windKts
+                )
+                _uiState.update {
+                    it.copy(
+                        activeGroundTruthVerification = verification,
+                        isBmkgVerifying = false
+                    )
+                }
+            } else {
+                _uiState.update { it.copy(isBmkgVerifying = false) }
+            }
+        }
+    }
+
+    fun dismissGroundTruthVerification() {
+        _uiState.update { it.copy(activeGroundTruthVerification = null) }
     }
 
     fun dismissProbe() {

@@ -167,10 +167,124 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `version 1_4 and 10cm s-band radar scanning active detection alert`() {
+  fun `version 1_5 and 10cm s-band radar scanning active detection alert`() {
     val repo = WeatherRepository()
     val vm = StormScanViewModel(repo)
     assertTrue(vm.uiState.value.activeDetectionAlert.contains("10cm S-BAND RADAR SCANNER ACTIVE"))
     assertTrue(vm.uiState.value.scanningSpeedSpotsPerSec in 5.0f..15.0f)
+  }
+
+  @Test
+  fun `gpu vector tiling engine framerate targets and refresh rules`() {
+    val vm = StormScanViewModel()
+    // Performance locked precisely at 60 FPS by default
+    assertEquals(com.example.model.TargetFramerateFps.FPS_60, vm.uiState.value.targetFramerate)
+    assertEquals(60, vm.uiState.value.targetFramerate.fps)
+    assertEquals(16L, vm.uiState.value.targetFramerate.intervalMs)
+    assertEquals(true, vm.uiState.value.gpuVectorTilingEnabled)
+
+    // Dynamic framerate target adjustment via settings
+    vm.setTargetFramerate(com.example.model.TargetFramerateFps.FPS_120)
+    assertEquals(com.example.model.TargetFramerateFps.FPS_120, vm.uiState.value.targetFramerate)
+    assertEquals(8L, vm.uiState.value.targetFramerate.intervalMs)
+
+    vm.setTargetFramerate(com.example.model.TargetFramerateFps.FPS_30)
+    assertEquals(33L, vm.uiState.value.targetFramerate.intervalMs)
+
+    vm.toggleGpuVectorTiling()
+    assertEquals(false, vm.uiState.value.gpuVectorTilingEnabled)
+  }
+
+  @Test
+  fun `optical flow neural network analyzes fluid dynamics and cloud-top fluid mechanics`() {
+    val repo = WeatherRepository()
+    val flow = repo.generateOpticalFlowField(repo.cyclones, 0.25f)
+    assertTrue("Optical flow vector field must not be empty", flow.isNotEmpty())
+
+    val first = flow.first()
+    assertTrue("Speed must be positive", first.speedKts > 0f)
+    assertNotNull(first.location)
+    assertTrue(first.cloudTopTempC < 0f) // Sub-zero convective clouds
+  }
+
+  @Test
+  fun `spatial dbscan clustering groups and isolates high-density radar cores from noise`() {
+    val repo = WeatherRepository()
+    val testSpots = listOf(
+      com.example.model.ScannedSpot(
+        id = "spot_core_1",
+        location = com.example.model.GeoPoint(-6.0, 106.8),
+        name = "Jakarta Core 1",
+        type = com.example.model.ScannedSpotType.HEAVY_RAIN,
+        accuracyPct = 96f,
+        windKts = 40,
+        humidityPct = 95,
+        aqi = 20,
+        detectedTick = System.currentTimeMillis(),
+        reflectivityDbz = 52f,
+        precipitationRateMmH = 45f
+      ),
+      com.example.model.ScannedSpot(
+        id = "spot_core_2",
+        location = com.example.model.GeoPoint(-6.2, 107.0),
+        name = "Jakarta Core 2",
+        type = com.example.model.ScannedSpotType.HEAVY_RAIN,
+        accuracyPct = 97f,
+        windKts = 45,
+        humidityPct = 96,
+        aqi = 18,
+        detectedTick = System.currentTimeMillis(),
+        reflectivityDbz = 55f,
+        precipitationRateMmH = 58f
+      ),
+      com.example.model.ScannedSpot(
+        id = "spot_isolated_noise",
+        location = com.example.model.GeoPoint(45.0, -120.0), // Far isolated noise
+        name = "Pacific Noise",
+        type = com.example.model.ScannedSpotType.CONVECTIVE_CELL,
+        accuracyPct = 85f,
+        windKts = 15,
+        humidityPct = 70,
+        aqi = 30,
+        detectedTick = System.currentTimeMillis(),
+        reflectivityDbz = 25f,
+        precipitationRateMmH = 4f
+      )
+    )
+
+    val clusters = repo.runDbscanClustering(testSpots, epsKm = 300f, minPts = 2)
+    assertEquals(1, clusters.size)
+    val cluster = clusters.first()
+    assertEquals(2, cluster.pointCount)
+    assertTrue(cluster.memberIds.contains("spot_core_1"))
+    assertTrue(cluster.memberIds.contains("spot_core_2"))
+    assertEquals(false, cluster.memberIds.contains("spot_isolated_noise")) // Noise excluded!
+    assertTrue(cluster.boundingHull.size >= 8)
+  }
+
+  @Test
+  fun `bmkg ground-truth validation sub-routine cross-references surface pressure and wind`() {
+    val repo = WeatherRepository()
+    assertTrue("BMKG moored buoys must be populated", repo.bmkgBuoyStations.isNotEmpty())
+
+    // Target near Java Sea / Sunda Strait
+    val targetLoc = com.example.model.GeoPoint(-5.5, 107.5)
+    val verification = repo.verifyTargetWithBmkgGroundTruth(
+      targetId = "anomaly_sunda",
+      targetName = "Sunda Squall Line",
+      targetLocation = targetLoc,
+      aiPredictedPressureHpa = 1008.0f,
+      aiPredictedWindKts = 30
+    )
+
+    assertNotNull(verification.nearestStation)
+    assertTrue(verification.distanceKm > 0f)
+    assertNotNull(verification.status)
+    assertTrue(verification.normalizedPressureHpa in 990f..1030f)
+    assertTrue(verification.normalizedWindKts > 0)
+
+    val vm = StormScanViewModel(repo)
+    vm.triggerBmkgGroundTruthVerification(cyclone = repo.cyclones.first())
+    assertNotNull(vm.uiState.value.bmkgBuoys)
   }
 }

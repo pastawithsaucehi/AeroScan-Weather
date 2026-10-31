@@ -118,6 +118,12 @@ import com.example.model.StrongWindArea
 import com.example.model.TerrainMapStyle
 import com.example.model.WindSeverity
 import com.example.model.WindSpeedUnit
+import com.example.model.TargetFramerateFps
+import com.example.model.OpticalFlowVector
+import com.example.model.DbscanCluster
+import com.example.model.BmkgBuoyStation
+import com.example.model.BmkgGroundTruthVerification
+import com.example.model.BmkgVerificationStatus
 import com.example.ui.theme.BorderDark
 import com.example.ui.theme.ConsensusModelTrack
 import com.example.ui.theme.EcmwfTrack
@@ -176,6 +182,13 @@ fun MapHudOverlay(
     onDismissProbe: () -> Unit = {},
     onSetProjectionType: (MapProjectionType) -> Unit = {},
     onToggleProjectionType: () -> Unit = {},
+    onSetTargetFramerate: (TargetFramerateFps) -> Unit = {},
+    onToggleGpuVectorTiling: () -> Unit = {},
+    onToggleDbscanClustering: () -> Unit = {},
+    onTriggerBmkgVerification: (Cyclone?, ScannedSpot?) -> Unit = { _, _ -> },
+    onDismissBmkgVerification: () -> Unit = {},
+    onSelectDbscanCluster: (DbscanCluster?) -> Unit = {},
+    onSelectBmkgBuoy: (BmkgBuoyStation?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var isCleanMapMode by remember { mutableStateOf(false) }
@@ -261,7 +274,7 @@ fun MapHudOverlay(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "AEROSCAN v1.4",
+                        text = "AEROSCAN v1.5",
                         color = textPrimary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -366,7 +379,7 @@ fun MapHudOverlay(
                             )
                             Spacer(modifier = Modifier.width(5.dp))
                             Text(
-                                text = "v1.4",
+                                text = "v1.5",
                                 color = RadarCyan,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
@@ -994,6 +1007,10 @@ fun MapHudOverlay(
                     onToggleSurgeVectors = onToggleSurgeVectors,
                     onSetProjectionType = onSetProjectionType,
                     onSetScannerBeamStyle = onSetScannerBeamStyle,
+                    onSetTargetFramerate = onSetTargetFramerate,
+                    onToggleGpuVectorTiling = onToggleGpuVectorTiling,
+                    onToggleDbscanClustering = onToggleDbscanClustering,
+                    onTriggerBmkgVerification = { onTriggerBmkgVerification(uiState.selectedCyclone ?: uiState.cyclones.firstOrNull(), null) },
                     onClose = { onSetAppScanMode(AppScanMode.CYCLONES) }
                 )
             }
@@ -1013,6 +1030,9 @@ fun MapHudOverlay(
                         surfaceBg = surfaceBg,
                         borderCol = borderCol,
                         textPrimary = textPrimary,
+                        isBmkgVerifying = uiState.isBmkgVerifying,
+                        verification = uiState.activeGroundTruthVerification,
+                        onTriggerBmkgVerification = { onTriggerBmkgVerification(cyclone, null) },
                         onSetForecastHour = onSetForecastHour,
                         onClose = onCloseDetail
                     )
@@ -1125,6 +1145,23 @@ fun MapHudOverlay(
                 }
             }
 
+            // Ground-Truth Double-Verification Card
+            AnimatedVisibility(
+                visible = uiState.activeGroundTruthVerification != null,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            ) {
+                uiState.activeGroundTruthVerification?.let { verification ->
+                    BmkgGroundTruthCard(
+                        verification = verification,
+                        surfaceBg = surfaceBg,
+                        borderCol = borderCol,
+                        textPrimary = textPrimary,
+                        onClose = onDismissBmkgVerification
+                    )
+                }
+            }
+
             // Live Atmospheric Telemetry Probe Bar (prominently showing Humidity & Air Quality)
             if (uiState.selectedCyclone == null && uiState.selectedWindArea == null &&
                 uiState.selectedServer == null && uiState.selectedSatellite == null &&
@@ -1146,7 +1183,7 @@ fun MapHudOverlay(
                 }
             }
 
-            // 72-Hour Forecast Predictive Timeline Scrubber (v1.4 Feature)
+            // 72-Hour Forecast Predictive Timeline Scrubber (v1.5 Feature)
             if (uiState.appScanMode != AppScanMode.SETTINGS) {
                 Surface(
                     shape = RoundedCornerShape(14.dp),
@@ -1343,6 +1380,9 @@ fun MapHudOverlay(
                                                     MapLayerType.SATELLITES -> Icons.Default.SatelliteAlt
                                                     MapLayerType.SERVERS -> Icons.Default.Dns
                                                     MapLayerType.LIGHTNING -> Icons.Default.Bolt
+                                                    MapLayerType.OPTICAL_FLOW -> Icons.Default.CompareArrows
+                                                    MapLayerType.DBSCAN_CLUSTERS -> Icons.Default.Radar
+                                                    MapLayerType.BMKG_BUOYS -> Icons.Default.MyLocation
                                                 }
                                                 Icon(
                                                     imageVector = icon,
@@ -1487,6 +1527,10 @@ private fun RadarSettingsPanel(
     onToggleSurgeVectors: (Boolean) -> Unit = {},
     onSetProjectionType: (MapProjectionType) -> Unit = {},
     onSetScannerBeamStyle: (ScannerBeamStyle) -> Unit = {},
+    onSetTargetFramerate: (TargetFramerateFps) -> Unit = {},
+    onToggleGpuVectorTiling: () -> Unit = {},
+    onToggleDbscanClustering: () -> Unit = {},
+    onTriggerBmkgVerification: () -> Unit = {},
     onClose: () -> Unit
 ) {
     Surface(
@@ -1525,7 +1569,7 @@ private fun RadarSettingsPanel(
                         border = androidx.compose.foundation.BorderStroke(1.dp, RadarCyan)
                     ) {
                         Text(
-                            text = "v1.4",
+                            text = "v1.5",
                             color = RadarCyan,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
@@ -1564,7 +1608,7 @@ private fun RadarSettingsPanel(
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
-                            text = "Release 2026.10 • Build 6 • Target SDK 36",
+                            text = "Release 2026.10 • Build 7 • Target SDK 36",
                             color = textSecondary,
                             fontSize = 9.sp,
                             fontFamily = FontFamily.Monospace
@@ -1575,7 +1619,7 @@ private fun RadarSettingsPanel(
                         color = RadarCyan
                     ) {
                         Text(
-                            text = "VERSION 1.4",
+                            text = "VERSION 1.5",
                             color = Color.Black,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
@@ -2159,6 +2203,194 @@ private fun RadarSettingsPanel(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    // =========================================================================
+                    // 1. HIGH-PERFORMANCE GRAPHICS ENGINE (GPU VECTOR TILING)
+                    // =========================================================================
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = RadarCyan.copy(alpha = 0.12f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, RadarCyan.copy(alpha = 0.45f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("GPU Vector Tiling Engine", color = textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "OPENGL / WEBGL",
+                                            color = RadarCyan,
+                                            fontSize = 8.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier
+                                                .background(RadarCyan.copy(alpha = 0.2f), RoundedCornerShape(3.dp))
+                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                    Text("Eliminates CPU rendering bottlenecks during dense spatial mapping cycles. Shaders & vertex arrays active.", color = textSecondary, fontSize = 9.sp)
+                                }
+                                Switch(
+                                    checked = uiState.gpuVectorTilingEnabled,
+                                    onCheckedChange = { onToggleGpuVectorTiling() },
+                                    modifier = Modifier.testTag("gpu_vector_tiling_toggle")
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Framerate Target Selector (Locked 60 FPS default)
+                            Text(
+                                text = "Refresh Rules • Framerate Target (Dynamic):",
+                                color = textPrimary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Spacer(modifier = Modifier.height(5.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                TargetFramerateFps.values().forEach { fps ->
+                                    val isSelected = uiState.targetFramerate == fps
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = if (isSelected) RadarCyan.copy(alpha = 0.28f) else Color.Transparent,
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) RadarCyan else Color.White.copy(alpha = 0.15f)),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { onSetTargetFramerate(fps) }
+                                            .testTag("framerate_${fps.name}")
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(vertical = 5.dp, horizontal = 2.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text(
+                                                text = "${fps.fps} FPS",
+                                                color = if (isSelected) RadarCyan else textPrimary,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                            Text(
+                                                text = if (fps == TargetFramerateFps.FPS_60) "DEFAULT LOCK" else "${fps.intervalMs}ms",
+                                                color = if (isSelected) RadarCyan else textSecondary,
+                                                fontSize = 7.5.sp,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // =========================================================================
+                    // 2. SAT + AI PREDICTIVE INFRASTRUCTURE (DBSCAN CLUSTERING)
+                    // =========================================================================
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFE040FB).copy(alpha = 0.12f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE040FB).copy(alpha = 0.45f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Spatial DBSCAN Clustering", color = textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "OPTICAL FLOW + AI",
+                                            color = Color(0xFFE040FB),
+                                            fontSize = 8.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier
+                                                .background(Color(0xFFE040FB).copy(alpha = 0.2f), RoundedCornerShape(3.dp))
+                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                    Text("Density-Based Spatial Clustering: Dynamically groups and isolates high-density radar cores and lightning arrays from noise.", color = textSecondary, fontSize = 9.sp)
+                                }
+                                Switch(
+                                    checked = uiState.dbscanClusteringEnabled,
+                                    onCheckedChange = { onToggleDbscanClustering() },
+                                    modifier = Modifier.testTag("dbscan_clustering_toggle")
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // =========================================================================
+                    // 3. GROUND-TRUTH VALIDATION FRAMEWORK (BMKG TELEMETRY HOOK)
+                    // =========================================================================
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF00E676).copy(alpha = 0.12f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.45f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("BMKG Maritime Ground-Truth Hook", color = textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "INDONESIA AGENCY",
+                                            color = Color(0xFF00E676),
+                                            fontSize = 8.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier
+                                                .background(Color(0xFF00E676).copy(alpha = 0.2f), RoundedCornerShape(3.dp))
+                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                    Text("Fetches live surface telemetry and maritime buoy data from BMKG. Double-verifies barometric pressure & wind speeds.", color = textSecondary, fontSize = 9.sp)
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xFF00E676),
+                                    modifier = Modifier
+                                        .clickable { onTriggerBmkgVerification() }
+                                        .testTag("trigger_bmkg_verification_button")
+                                ) {
+                                    Text(
+                                        text = "RUN TEST",
+                                        color = Color.Black,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     // App Version Footer
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -2166,11 +2398,126 @@ private fun RadarSettingsPanel(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "AEROSCAN v1.4 • BUILD 6 (RELEASE-2026)",
+                            text = "AEROSCAN v1.5 • BUILD 7 (RELEASE-2026)",
                             color = textSecondary,
                             fontSize = 9.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BmkgGroundTruthCard(
+    verification: BmkgGroundTruthVerification,
+    surfaceBg: Color,
+    borderCol: Color,
+    textPrimary: Color,
+    onClose: () -> Unit
+) {
+    val statusColor = verification.status.color
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = surfaceBg,
+        border = androidx.compose.foundation.BorderStroke(1.2.dp, statusColor),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("bmkg_ground_truth_card")
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.MyLocation, contentDescription = null, tint = statusColor, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "BMKG GROUND-TRUTH VERIFICATION",
+                        color = textPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+                IconButton(onClick = onClose, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = Color.LightGray, modifier = Modifier.size(16.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Surface(
+                shape = RoundedCornerShape(5.dp),
+                color = statusColor.copy(alpha = 0.2f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, statusColor)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, tint = statusColor, modifier = Modifier.size(12.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${verification.status.badge}: ${verification.status.label.uppercase()}",
+                        color = statusColor,
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Color.Black.copy(alpha = 0.35f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, borderCol)
+            ) {
+                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "TARGET: ${verification.targetName.uppercase()}",
+                        color = textPrimary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        text = "STATION: ${verification.nearestStation.name} (${verification.distanceKm.toInt()} km away • ${verification.nearestStation.oceanBasin})",
+                        color = Color.LightGray,
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        text = "PRESSURE: AI ${verification.aiPredictedPressureHpa} hPa vs Buoy ${verification.nearestStation.barometricPressureHpa} hPa (ΔP ${verification.deltaPressureHpa} hPa)",
+                        color = RadarCyan,
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        text = "WIND SPEED: AI ${verification.aiPredictedWindKts} kt vs Buoy ${verification.nearestStation.windSpeedKts} kt (ΔV ${verification.deltaWindKts} kt)",
+                        color = RadarGreen,
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = RadarCyan.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, RadarCyan.copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            text = "CALIBRATED OUTPUT PROFILE: ${verification.normalizedPressureHpa} hPa • ${verification.normalizedWindKts} kt",
+                            color = RadarCyan,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                         )
                     }
                 }
@@ -2261,6 +2608,9 @@ private fun CycloneDetailCard(
     surfaceBg: Color,
     borderCol: Color,
     textPrimary: Color,
+    isBmkgVerifying: Boolean = false,
+    verification: BmkgGroundTruthVerification? = null,
+    onTriggerBmkgVerification: () -> Unit = {},
     onSetForecastHour: (Int) -> Unit = {},
     onClose: () -> Unit
 ) {
@@ -2338,6 +2688,37 @@ private fun CycloneDetailCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // BMKG Ground-Truth Double Verification Trigger Chip
+                    Surface(
+                        shape = RoundedCornerShape(5.dp),
+                        color = if (isBmkgVerifying) Color(0xFFFFD600).copy(alpha = 0.25f) else Color(0xFF00E676).copy(alpha = 0.20f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isBmkgVerifying) Color(0xFFFFD600) else Color(0xFF00E676)),
+                        modifier = Modifier
+                            .clickable { onTriggerBmkgVerification() }
+                            .padding(end = 4.dp)
+                            .testTag("verify_bmkg_button")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MyLocation,
+                                contentDescription = null,
+                                tint = if (isBmkgVerifying) Color(0xFFFFD600) else Color(0xFF00E676),
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = if (isBmkgVerifying) "BMKG..." else "BMKG VERIFY",
+                                color = if (isBmkgVerifying) Color(0xFFFFD600) else Color(0xFF00E676),
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+
                     // Expand/Collapse Toggle Pill
                     Surface(
                         shape = RoundedCornerShape(6.dp),
